@@ -1,14 +1,28 @@
 import firebase_admin
 from firebase_admin import credentials, storage
+import os
+import base64
+import json
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
-from typing import List, Optional
-import os
+from typing import List
 
-cred = credentials.Certificate("Backend/serviceAccountKey.json")
-firebase_admin.initialize_app(cred, {'storageBucket': 'neurolabs-apk-download.appspot.com'})
+# Load the base64 encoded Firebase service account key from environment
+firebase_service_account_base64 = os.getenv("FIREBASE_SERVICE_ACCOUNT_KEY")
+
+if firebase_service_account_base64 is None:
+    raise Exception("Firebase service account key is not found in environment variables.")
+
+# Decode the base64 string to get the original JSON key
+firebase_service_account_json = base64.b64decode(firebase_service_account_base64).decode('utf-8')
+
+# Convert the JSON string into a dictionary
+firebase_credentials = json.loads(firebase_service_account_json)
+
+# Initialize Firebase Admin SDK using the decoded credentials
+firebase_admin.initialize_app(credentials.Certificate(firebase_credentials), {'storageBucket': 'neurolabs-apk-download.appspot.com'})
 
 # MongoDB Connection Setup
 client = AsyncIOMotorClient('mongodb+srv://neurolabsinnovationsdocs:Neurolabs%40123@cluster0.elyma.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
@@ -19,10 +33,10 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"], 
-    allow_headers=["*"], 
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 @app.post("/upload/")
@@ -79,7 +93,7 @@ async def upload_files(
             "ipa_url": ipa_url,
             "image_urls": image_urls
         }
-        
+
         # Insert the file metadata into MongoDB
         await admin_collection.insert_one(file_data)
 
@@ -122,6 +136,5 @@ async def list_files():
         raise HTTPException(status_code=500, detail=f"Error fetching files: {str(e)}")
 
 @app.get("/")
-
 def index():
-    return {"Message":"APK Downloader"} 
+    return {"Message": "APK Downloader"}
